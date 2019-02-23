@@ -7,9 +7,19 @@ using System.Linq;
 
 namespace Continuous.Server
 {
-	public partial class Visualizer
-	{
-		partial void PlatformStopVisualizing ()
+	public class Visualizer : VisualizerBase
+    {
+        public Visualizer() : base(null)
+        {
+
+        }
+
+        public Visualizer(object context = null) : base(context)
+        {
+
+        }
+
+        public override void StopVisualizing()
 		{
 			var window = UIApplication.SharedApplication.KeyWindow;
 			if (window == null)
@@ -24,7 +34,7 @@ namespace Continuous.Server
 			}
 		}
 
-		partial void PlatformVisualize (EvalResult res)
+        public override void Visualize(EvalResult res)
 		{
 			var val = res.Result;
 			var ty = val != null ? val.GetType () : typeof(object);
@@ -169,7 +179,7 @@ namespace Continuous.Server
 			return FindVisualizer (type.BaseType);
 		}
 
-		partial void PlatformInitialize ()
+        protected override void Initialize ()
 		{
 			typeVisualizers = new Dictionary<string, TypeVisualizer> {
 				{ typeof(UIApplicationDelegate).FullName, o => GetView ((UIApplicationDelegate)o) },

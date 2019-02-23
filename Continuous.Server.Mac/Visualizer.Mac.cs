@@ -7,17 +7,29 @@ using System.Linq;
 
 namespace Continuous.Server
 {
-	public partial class Visualizer
-	{
-		partial void PlatformStopVisualizing()
-		{
-		}
+	public class Visualizer : VisualizerBase
+    {
+        public Visualizer() : base(null)
+        {
 
-		partial void PlatformVisualize(EvalResult res)
-		{
-		}
+        }
 
-		public NSViewController GetViewer(object value, bool createInspector)
+        public Visualizer(object context = null) : base(context)
+        {
+
+        }
+
+        public override void Visualize(EvalResult res)
+        {
+            // TODO (was not implemented?)
+        }
+
+        public override void StopVisualizing()
+        {
+            // TODO (was not implemented?)
+        }
+
+        public NSViewController GetViewer(object value, bool createInspector)
 		{
 			var vc = value as NSViewController;
 			if (vc != null)
@@ -81,8 +93,8 @@ namespace Continuous.Server
 			return FindVisualizer(type.BaseType);
 		}
 
-		partial void PlatformInitialize()
-		{
+        protected override void Initialize()
+        {
 			typeVisualizers = new Dictionary<string, TypeVisualizer> {
 				{ typeof(NSView).FullName, o => GetView ((NSView)o) },
 				{ typeof(NSImage).FullName, o => GetView ((NSImage)o) },
@@ -143,6 +155,6 @@ namespace Continuous.Server
 
 			return GetFormsPage(pageObj);
 		}
-	}
+    }
 }
 

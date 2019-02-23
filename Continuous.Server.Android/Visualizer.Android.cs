@@ -7,20 +7,31 @@ using Android.Views;
 
 namespace Continuous.Server
 {
-	public partial class Visualizer
-	{
-		partial void PlatformStopVisualizing ()
+	public class Visualizer : VisualizerBase
+    {
+        public Visualizer(object context) : base(context)
+        {
+            
+        }
+
+        protected override void Initialize()
+        {
+
+        }
+
+        public override void Visualize(EvalResult resp)
+        {
+            var val = resp.Result;
+            var ty = val != null ? val.GetType() : typeof(object);
+
+            Log("{0} value = {1}", ty.FullName, val);
+
+            ShowViewer(GetViewer(resp));
+        }
+
+        public override void StopVisualizing ()
 		{
-		}
 
-		partial void PlatformVisualize (EvalResult resp)
-		{
-			var val = resp.Result;
-			var ty = val != null ? val.GetType () : typeof(object);
-
-			Log ("{0} value = {1}", ty.FullName, val);
-
-			ShowViewer (GetViewer (resp));
 		}
 
 		object GetViewer (EvalResult resp)
@@ -30,7 +41,7 @@ namespace Continuous.Server
 
 		void ShowViewer (object obj)
 		{
-			var c = context as global::Android.Content.Context;
+			var c = Context as global::Android.Content.Context;
 			if (c == null)
 				return;
 			var key = Guid.NewGuid ().ToString ();

@@ -2,38 +2,28 @@ using System;
 
 namespace Continuous.Server
 {
-	public partial class Visualizer
+	public abstract class VisualizerBase
 	{
-		readonly object context;
+		protected readonly object Context;
 
-		public Visualizer (object context)
+		public VisualizerBase(object context)
 		{
-			this.context = context;
-			PlatformInitialize ();
+			Context = context;
+			Initialize ();
 		}
 
-		public void Visualize (EvalResult res)
-		{
-			PlatformVisualize (res);
-		}
-
-		public void StopVisualizing ()
-		{
-			PlatformStopVisualizing ();
-		}
-
-		partial void PlatformInitialize ();
-		partial void PlatformVisualize (EvalResult res);
-		partial void PlatformStopVisualizing ();
-
-		void Log (string format, params object[] args)
+        protected abstract void Initialize();
+        public abstract void Visualize(EvalResult res);
+        public abstract void StopVisualizing();
+        
+		protected void Log (string format, params object[] args)
 		{
 			#if DEBUG
 			Log (string.Format (format, args));
 			#endif
 		}
 
-		void Log (string msg)
+        protected void Log (string msg)
 		{
 			#if DEBUG
 			System.Diagnostics.Debug.WriteLine (msg);
