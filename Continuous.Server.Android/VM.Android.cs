@@ -3,20 +3,23 @@ using Mono.CSharp;
 
 namespace Continuous.Server
 {
-	public partial class VM
+	public class VM : VMBase
 	{
-		partial void PlatformSettings (CompilerSettings settings)
-		{
-			settings.AddConditionalSymbol ("__ANDROID__");
+        protected override void ApplyCompilerSettings(CompilerSettings settings)
+        {
+            base.ApplyCompilerSettings(settings);
+            settings.AddConditionalSymbol ("__ANDROID__");
 		}
 
-		partial void PlatformInit ()
+		protected override void Init()
 		{
+            base.Init();
+
 			object res;
 			bool hasRes;
-			eval.Evaluate ("using Android.OS;", out res, out hasRes);
-			eval.Evaluate ("using Android.App;", out res, out hasRes);
-			eval.Evaluate ("using Android.Widget;", out res, out hasRes);
+			Evaluator.Evaluate ("using Android.OS;", out res, out hasRes);
+            Evaluator.Evaluate ("using Android.App;", out res, out hasRes);
+            Evaluator.Evaluate ("using Android.Widget;", out res, out hasRes);
 		}
 	}
 }

@@ -32,11 +32,14 @@ namespace Continuous
 		public TimeSpan Duration;
 		public object Result;
 		public bool HasResult;
+        public Type PrimaryType { get; set; }
+        public List<Type> NewTypes { get; set; }
 
-		public bool HasErrors {
+        public bool HasErrors {
 			get { return Messages != null && Messages.Any (m => m.MessageType == "error"); }
 		}
-	}
+
+    }
 
 	public class EvalResponse
 	{

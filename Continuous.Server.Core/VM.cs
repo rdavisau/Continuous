@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Mono.CSharp;
 using System.Reflection;
 using System.Threading;
@@ -11,14 +12,14 @@ namespace Continuous.Server
 	/// Evaluates expressions using the mono C# REPL.
 	/// This method is thread safe so you can call it from anywhere.
 	/// </summary>
-	public partial class VM : IVM
+	public class VMBase : IVM
 	{
 		const string EvalAssemblyPrefix = "eval-";
 
 		readonly object mutex = new object ();
 		readonly Printer printer = new Printer ();
 
-		Evaluator eval;
+		protected Evaluator Evaluator;
 
 		public EvalResult Eval (EvalRequest code, TaskScheduler mainScheduler, CancellationToken token)
 		{
@@ -37,7 +38,11 @@ namespace Continuous.Server
 			object result = null;
 			bool hasResult = false;
 
-			lock (mutex) {
+            // be ready to capture assemblies as they are produced by the evaluator;
+            var assemblies = new List<Assembly>();
+            void OnAssemblyLoad(object sender, AssemblyLoadEventArgs args) => assemblies.Add(args.LoadedAssembly);
+
+            lock (mutex) {
 				InitIfNeeded ();
 
 				Log ("EVAL ON THREAD {0}", System.Threading.Thread.CurrentThread.ManagedThreadId);
@@ -46,41 +51,58 @@ namespace Continuous.Server
 
 				sw.Start ();
 
-				try {
-					if (!string.IsNullOrEmpty (code.Declarations))
+
+                try
+                {
+                    AppDomain.CurrentDomain.AssemblyLoad += OnAssemblyLoad;
+
+                    if (!string.IsNullOrEmpty (code.Declarations))
 					{
-						eval.Evaluate (code.Declarations, out result, out hasResult);
+						Evaluator.Evaluate (code.Declarations, out result, out hasResult);
 					}
-					if (!string.IsNullOrEmpty (code.ValueExpression))
+					if (!string.IsNullOrEmpty (code.ValueExpression) && ShouldInstantiate(code))
 					{
-						eval.Evaluate (code.ValueExpression, out result, out hasResult);
+						Evaluator.Evaluate (code.ValueExpression, out result, out hasResult);
 					}
-				} catch (InternalErrorException) {
-					eval = null; // Force re-init
-				} catch (Exception ex) {
+
+                    AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
+
+                }
+                catch (InternalErrorException) {
+					Evaluator = null; // Force re-init
+                    AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
+                }
+                catch (Exception ex) {
 					// Sometimes Mono.CSharp fails when constructing failure messages
 					if (ex.StackTrace.Contains ("Mono.CSharp.InternalErrorException")) {
-						eval = null; // Force re-init
+						Evaluator = null; // Force re-init
 					}
 					printer.AddError (ex);
-				}
+                    AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
+                }
 
-				sw.Stop ();
+                sw.Stop ();
 
 				Log ("END EVAL ON THREAD {0}", System.Threading.Thread.CurrentThread.ManagedThreadId);
 			}
+
+			var primaryTypeName = code.ValueExpression.Replace("new ", "").Replace("()", "").Replace(";", "").Trim();
+			var newTypes = GetTypesFromAssemblies(assemblies);
+			var primaryType = newTypes.FirstOrDefault(t => t.FullName.EndsWith(primaryTypeName));
 
 			return new EvalResult {
 				Messages = printer.Messages.ToArray (),
 				Duration = sw.Elapsed,
 				Result = result,
 				HasResult = hasResult,
+				NewTypes = newTypes,
+				PrimaryType = primaryType,
 			};
 		}
 
 		void InitIfNeeded()
 		{
-			if (eval == null) {
+			if (Evaluator == null) {
 
 				Log ("INIT EVAL");
 
@@ -92,9 +114,9 @@ namespace Continuous.Server
 
 				settings.AddConditionalSymbol ("__Continuous__");
 				settings.AddConditionalSymbol ("DEBUG");
-				PlatformSettings (settings);
+                ApplyCompilerSettings(settings);
 				var context = new CompilerContext (settings, printer);
-				eval = new Evaluator (context);
+				Evaluator = new Evaluator (context);
 
 				//
 				// Add References to get UIKit, etc. Also add a hook to catch dynamically loaded assemblies.
@@ -119,10 +141,10 @@ namespace Continuous.Server
 				//
 				object res;
 				bool hasRes;
-				eval.Evaluate ("using System;", out res, out hasRes);
-				eval.Evaluate ("using System.Collections.Generic;", out res, out hasRes);
-				eval.Evaluate ("using System.Linq;", out res, out hasRes);
-				PlatformInit ();
+				Evaluator.Evaluate ("using System;", out res, out hasRes);
+				Evaluator.Evaluate ("using System.Collections.Generic;", out res, out hasRes);
+				Evaluator.Evaluate ("using System.Linq;", out res, out hasRes);
+				Init ();
 			}
 		}
 
@@ -134,9 +156,17 @@ namespace Continuous.Server
             return !isEvalAssembly;
         }
 
-        partial void PlatformSettings (CompilerSettings settings);
+        protected virtual void ApplyCompilerSettings(CompilerSettings settings)
+        {
 
-		partial void PlatformInit ();
+        }
+
+        protected virtual void Init()
+        {
+
+        }
+
+        protected virtual bool ShouldInstantiate(EvalRequest code) => true;
 
 		void AddReference (Assembly a)
 		{
@@ -152,7 +182,7 @@ namespace Continuous.Server
 			//
 			// TODO: Should this lock if called from the AssemblyLoad event?
 			//
-			eval.ReferenceAssembly (a);
+			Evaluator.ReferenceAssembly (a);
 		}
 
 		void Log (string format, params object[] args)
@@ -168,8 +198,16 @@ namespace Continuous.Server
 			System.Diagnostics.Debug.WriteLine (msg);
 			#endif
 		}
+        
+        public List<Type> GetTypesFromAssemblies(List<Assembly> assemblies)
+        {
+            return assemblies
+                .Where(x => x.FullName.StartsWith("eval-"))
+                .SelectMany(x => x.GetTypes())
+                .ToList();
+        }
 
-		class Printer : ReportPrinter
+        class Printer : ReportPrinter
 		{
 			public readonly List<EvalMessage> Messages = new List<EvalMessage> ();
 			public override void Print (AbstractMessage msg, bool showFullPath)

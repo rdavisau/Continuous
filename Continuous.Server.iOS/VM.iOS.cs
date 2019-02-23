@@ -3,20 +3,24 @@ using Mono.CSharp;
 
 namespace Continuous.Server
 {
-	public partial class VM
+	public class VM : VMBase
 	{
-		partial void PlatformSettings (CompilerSettings settings)
-		{
-			settings.AddConditionalSymbol ("__IOS__");
+		protected override void ApplyCompilerSettings(CompilerSettings settings)
+        {
+            base.ApplyCompilerSettings(settings);
+
+            settings.AddConditionalSymbol ("__IOS__");
 		}
 
-		partial void PlatformInit ()
-		{
-			object res;
+		protected override void Init()
+        {
+            base.Init();
+
+            object res;
 			bool hasRes;
-			eval.Evaluate ("using Foundation;", out res, out hasRes);
-			eval.Evaluate ("using CoreGraphics;", out res, out hasRes);
-			eval.Evaluate ("using UIKit;", out res, out hasRes);
+			Evaluator.Evaluate ("using Foundation;", out res, out hasRes);
+			Evaluator.Evaluate ("using CoreGraphics;", out res, out hasRes);
+			Evaluator.Evaluate ("using UIKit;", out res, out hasRes);
 		}
 	}
 }
