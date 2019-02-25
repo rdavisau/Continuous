@@ -9,10 +9,10 @@ using System.Collections.Generic;
 
 namespace Continuous.Server
 {
-	public partial class HttpServer
+    public partial class HttpServer
 	{
 		readonly int port;
-		readonly Visualizer visualizer;
+        Visualizer visualizer;
 
 		HttpListener listener;
 		TaskScheduler mainScheduler;
@@ -26,7 +26,10 @@ namespace Continuous.Server
 			this.visualizer = visualizer ?? new Visualizer (context);
 			this.vm = vm ?? (new VM());
 			this.broadcaster = discoverable ? new DiscoveryBroadcaster () : null;
-		}
+
+            if (this.visualizer is INeedToKnowAboutContinuousServer csVis)
+                csVis.ContinuousServer = this;
+        }
 
 		public void Run ()
 		{
@@ -58,6 +61,15 @@ namespace Continuous.Server
 				Loop ();
 			});
 		}
+
+        public void ReplaceVisualizer(Visualizer newVisualizer)
+        {
+            this.visualizer = newVisualizer;
+            if (this.visualizer is INeedToKnowAboutContinuousServer csVis)
+                csVis.ContinuousServer = this;
+
+            Log($"Replaced existing visualizer with {newVisualizer}");
+        }
 
         partial void GrantServerPermission (string url);
 
