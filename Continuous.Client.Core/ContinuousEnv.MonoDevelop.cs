@@ -149,42 +149,59 @@ namespace Continuous.Client
 			}
 		}
 
-		protected override async Task<TypeDecl[]> GetTopLevelTypeDeclsAsync ()
+		protected override Task<TypeDecl[]> GetTopLevelTypeDeclsAsync ()
 		{
 			var doc = IdeApp.Workbench.ActiveDocument;
-			Log ("Doc = {0}", doc);
-			if (doc == null) {
-				return new TypeDecl[0];
-			}
 
-			var ext = doc.FileName.Extension;
+            return GetTopLevelTypeDeclsForDocumentAsync(doc);
+		}
 
-			if (ext == ".cs") {
-				try {
+        protected override async Task<TypeDecl[]> GetTopLevelTypeDeclsForDocumentAsync(object document)
+        {
+            var doc = document as MonoDevelop.Ide.Gui.Document;
+
+            Log("Doc = {0}", doc);
+
+            if (doc == null)
+            {
+                return new TypeDecl[0];
+            }
+
+            var ext = doc.FileName.Extension;
+
+            if (ext == ".cs")
+            {
+                try
+                {
 
                     var analysisDocument = doc.GetAnalysisDocument();
 
-					var root = await analysisDocument.GetSyntaxRootAsync ();
-					var model = await analysisDocument.GetSemanticModelAsync ();
-					var typeDecls =
-						root.DescendantNodes ((arg) => true)
-							.OfType<ClassDeclarationSyntax> ()
-							.Select (t => new CSharpTypeDecl {
-								Document = new DocumentRef (doc.FileName.FullPath),
-								Declaration = t,
-								Root = root,
-								Model = model,
-							});
-					return typeDecls.ToArray ();
+                    var root = await analysisDocument.GetSyntaxRootAsync();
+                    var model = await analysisDocument.GetSemanticModelAsync();
+                    var typeDecls =
+                        root.DescendantNodes((arg) => true)
+                            .OfType<ClassDeclarationSyntax>()
+                            .Select(t => new CSharpTypeDecl
+                            {
+                                Document = new DocumentRef(doc.FileName.FullPath),
+                                Declaration = t,
+                                Root = root,
+                                Model = model,
+                            });
+                    return typeDecls.ToArray();
 
-				} catch (Exception ex) {
-					Log (ex);
-					return new TypeDecl[0];
-				}
-			}
-            
-			return new TypeDecl[0];
-		}
+                }
+                catch (Exception ex)
+                {
+                    Log(ex);
+                    return new TypeDecl[0];
+                }
+            }
+
+            return new TypeDecl[0];
+        }
+
+
 
 		protected override async Task<TextLoc?> GetCursorLocationAsync ()
 		{

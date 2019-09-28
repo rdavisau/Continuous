@@ -148,7 +148,7 @@ namespace Continuous.Client
 			}
 		}
 
-		public LinkedCode GetLinkedCode ()
+		public LinkedCode GetLinkedCode (bool instantiate)
 		{
 			var allDeps = AllDependencies.Where (x => x.HasCode).ToList ();
 
@@ -182,6 +182,13 @@ namespace Continuous.Client
 					x.Name + suffix)).
 				ToList ();
 
+            var valueExpression =
+                instantiate
+                ? ("new " +
+                    (HasNamespace ? FullNamespace + "." : "") +
+                    Name + suffix + "()")
+                : "";
+
 			Func<string, string> rename = c => {
 				var rc = c;
 				foreach (var r in renames) {
@@ -189,12 +196,10 @@ namespace Continuous.Client
 				}
 				return rc;
 			};
-
+            
 			return new LinkedCode (
 				valueExpression:
-					"new " +
-					(HasNamespace ? FullNamespace + "." : "") +
-					Name + suffix + "()",
+					valueExpression,
 				declarations:
 					string.Join (Environment.NewLine, codes.Select (x => {
 						var us = string.Join (Environment.NewLine, usings);

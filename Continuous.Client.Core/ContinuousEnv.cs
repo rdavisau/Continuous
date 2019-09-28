@@ -132,12 +132,35 @@ namespace Continuous.Client
             await SetTypesAndVisualizeMonitoredTypeAsync (forceEval: true, showError: true);
         }
 
+        public HashSet<MonoDevelop.Ide.Gui.Document> AdditionalDocuments = new HashSet<MonoDevelop.Ide.Gui.Document>();
+        public async Task AddTypeAsync()
+        {
+            var doc = MonoDevelop.Ide.IdeApp.Workbench.ActiveDocument;
+            if (doc == null)
+            {
+                Log("no active doc");
+                return;
+            }
+
+            AdditionalDocuments.Add(doc);
+
+            await SetTypesAndVisualizeMonitoredTypeAsync(forceEval: true, showError: true);
+        }
+
         protected async Task SetTypesAndVisualizeMonitoredTypeAsync (bool forceEval, bool showError)
         {
             //
             // Gobble up all we can about the types in the active document
             //
             var typeDecls = await GetTopLevelTypeDeclsAsync ();
+
+            foreach (var doc in AdditionalDocuments)
+            {
+                var docTypeDecls = await GetTopLevelTypeDeclsForDocumentAsync(doc);
+
+                typeDecls = Enumerable.Concat(typeDecls, docTypeDecls).ToArray();
+            }
+
             foreach (var td in typeDecls) {
                 td.SetTypeCode ();
             }
@@ -158,7 +181,8 @@ namespace Continuous.Client
 
         protected abstract void MonitorEditorChanges ();
 
-        protected abstract Task<TypeDecl[]> GetTopLevelTypeDeclsAsync ();
+        protected abstract Task<TypeDecl[]> GetTopLevelTypeDeclsAsync();
+        protected abstract Task<TypeDecl[]> GetTopLevelTypeDeclsForDocumentAsync(object document);
 
         async Task<TypeDecl> FindTypeAtCursorAsync ()
         {
@@ -177,51 +201,65 @@ namespace Continuous.Client
 
         LinkedCode lastLinkedCode = null;
 
-        public async Task VisualizeMonitoredTypeAsync (bool forceEval, bool showError)
+
+        public async Task VisualizeMonitoredTypeAsync(bool forceEval, bool showError)
         {
             //
             // Refresh the monitored type
             //
-            if (string.IsNullOrWhiteSpace (MonitorTypeName))
+            if (string.IsNullOrWhiteSpace(MonitorTypeName))
                 return;
 
-            var monitorTC = TypeCode.Get (MonitorTypeName);
+            var monitoredTypeCode = TypeCode.Get(MonitorTypeName); 
 
-            var code = await Task.Run (() => monitorTC.GetLinkedCode ());
+            var typesWithCode =
+                TypeCode.All.Where(x => x.HasCode)
+                    .OrderByDescending(x => x.Name != MonitorTypeName)
+                    .ToList();
 
-            OnLinkedMonitoredCode (code);
+            foreach (var tc in typesWithCode)
+            {
+                var isMonitoredType = tc.Key == monitoredTypeCode.Key;
 
-            if (!forceEval && lastLinkedCode != null && lastLinkedCode.CacheKey == code.CacheKey) {
-                return;
-            }
+                var code = await Task.Run(() => tc.GetLinkedCode(instantiate: isMonitoredType));
+                OnLinkedMonitoredCode(code);
 
-            //
-            // Send the code to the device
-            //
-            try {
-                //
-                // Declare and Show it
-                //
-                Log (code.ValueExpression);
-				var resp = await EvalForResponseAsync (code.Declarations, code.ValueExpression, showError);
-                if (resp.HasErrors)
+                if (!forceEval && lastLinkedCode != null && lastLinkedCode.CacheKey == code.CacheKey)
+                {
                     return;
+                }
 
                 //
-                // If we made it this far, remember so we don't re-send the same
-                // thing immediately
+                // Send the code to the device
                 //
-                lastLinkedCode = code;
+                try
+                {
+                    //
+                    // Declare and Show it
+                    //
+                    Log(code.ValueExpression);
+                    var resp = await EvalForResponseAsync(code.Declarations, code.ValueExpression, showError);
+                    if (resp.HasErrors)
+                        return;
 
-                //
-                // Update the editor
-                //
-                await UpdateEditorAsync (code, resp);
+                    //
+                    // If we made it this far, remember so we don't re-send the same
+                    // thing immediately
+                    //
+                    lastLinkedCode = code;
 
-            }
-            catch (Exception ex) {
-                if (showError) {
-                    Fail ("Could not communicate with the app.\n\n{0}: {1}", ex.GetType (), ex.Message);
+                    //
+                    // Update the editor
+                    //
+                    await UpdateEditorAsync(code, resp);
+
+                }
+                catch (Exception ex)
+                {
+                    if (showError)
+                    {
+                        Fail("Could not communicate with the app.\n\n{0}: {1}", ex.GetType(), ex.Message);
+                    }
                 }
             }
         }

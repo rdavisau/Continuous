@@ -55,6 +55,7 @@ namespace Continuous.Client.XamarinStudio
 		readonly ScrolledWindow toolbar2 = new ScrolledWindow ();
 		readonly Button runButton = new Button { Label = "Visualize Type" };
 		readonly Button refreshButton = new Button { Label = "Refresh" };
+        readonly Button addTypeButton = new Button { Label = "Add Type" };
 		readonly Button stopButton = new Button { Label = "Stop" };
 		readonly Button clearButton = new Button { Label = "Clear Edits" };
 		readonly Label hostLabel = new Label { Text = "Device:" };
@@ -83,6 +84,7 @@ namespace Continuous.Client.XamarinStudio
 
 			runButton.Clicked += RunButton_Clicked;
 			refreshButton.Clicked += RefreshButton_Clicked;
+            addTypeButton.Clicked += AddTypeButton_Clicked;
 			stopButton.Clicked += StopButton_Clicked;
 			clearButton.Clicked += ClearButton_Clicked;
 			hostEntry.Changed += HostEntry_Changed;
@@ -94,6 +96,7 @@ namespace Continuous.Client.XamarinStudio
 
 			toolbar0.PackStart (runButton, false, false, 4);
 			toolbar0.PackStart (refreshButton, false, false, 4);
+            toolbar0.PackStart(addTypeButton, false, false, 4);
 			toolbar0.PackStart (stopButton, false, false, 4);
 			toolbar0.PackEnd (clearButton, false, false, 4);
 			toolbar1.PackStart (hostLabel, false, false, 4);
@@ -125,7 +128,13 @@ namespace Continuous.Client.XamarinStudio
 			await Env.VisualizeAsync ();
 		}
 
-		async void RefreshButton_Clicked (object sender, EventArgs e)
+
+        private async void AddTypeButton_Clicked(object sender, EventArgs e)
+        {
+            await Env.AddTypeAsync();
+        }
+
+        async void RefreshButton_Clicked (object sender, EventArgs e)
 		{
 			ClearAlert ();
 			await Env.VisualizeMonitoredTypeAsync (forceEval: true, showError: true);
@@ -136,13 +145,15 @@ namespace Continuous.Client.XamarinStudio
 			ClearAlert ();
 			await Env.StopVisualizingAsync ();
 			dependenciesStore.Clear ();
+            Env.AdditionalDocuments.Clear();
 		}
 
 		async void ClearButton_Clicked (object sender, EventArgs e)
 		{
 			ClearAlert ();
 			TypeCode.ClearEdits ();
-			await Env.VisualizeMonitoredTypeAsync (forceEval: false, showError: false);
+            Env.AdditionalDocuments.Clear();
+            await Env.VisualizeMonitoredTypeAsync (forceEval: false, showError: false);
 		}
 
 		void HostEntry_Changed (object sender, EventArgs e)
