@@ -14,7 +14,7 @@
     <copyright>Copyright 2015-2019 Frank A. Krueger</copyright>
     <tags>continuous code</tags>
     <dependencies>
-      <dependency id="Newtonsoft.Json" version="8.0.3" />
+      <dependency id="Newtonsoft.Json" version="12.0.2" />
     </dependencies>
   </metadata>
   <files>
