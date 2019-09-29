@@ -37,13 +37,24 @@
     <DocumentationFile>bin\Release\Continuous.Server.Android.xml</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Xml" />
-    <Reference Include="System.Core" />
     <Reference Include="Mono.Android" />
-    <Reference Include="Mono.CSharp" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\packages\Newtonsoft.Json.8.0.3\lib\portable-net40+sl5+wp80+win8+wpa81\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.CSharp">
+      <HintPath>..\packages\Mono.CSharp.Repl.2019.6.4\lib\netstandard2.0\Mono.CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="mscorlib">
+      <HintPath>..\packages\Mono.CSharp.Repl.2019.6.4\lib\netstandard2.0\mscorlib.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core">
+      <HintPath>..\packages\Mono.CSharp.Repl.2019.6.4\lib\netstandard2.0\System.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="System">
+      <HintPath>..\packages\Mono.CSharp.Repl.2019.6.4\lib\netstandard2.0\System.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml">
+      <HintPath>..\packages\Mono.CSharp.Repl.2019.6.4\lib\netstandard2.0\System.Xml.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

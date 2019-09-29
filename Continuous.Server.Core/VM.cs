@@ -84,7 +84,12 @@ namespace Continuous.Server
 
 				Log ("INIT EVAL");
 
-				var settings = new CompilerSettings ();
+                var settings = new CompilerSettings
+                {
+                    GenerateDebugInfo = true,
+                    Version = LanguageVersion.Experimental
+                };
+
 				settings.AddConditionalSymbol ("__Continuous__");
 				settings.AddConditionalSymbol ("DEBUG");
 				PlatformSettings (settings);
