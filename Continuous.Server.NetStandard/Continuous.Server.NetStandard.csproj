@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DocumentationFile></DocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType></DebugType>
+    <DocumentationFile>bin\Release\netstandard2.0\Continuous.Server.NetStandard.xml</DocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
+    <PackageReference Include="Mono.CSharp" Version="4.0.0.143" />
+  </ItemGroup>
+  <Import Project="..\Continuous.Server.Core\Continuous.Server.Core.projitems" Label="Shared" Condition="Exists('..\Continuous.Server.Core\Continuous.Server.Core.projitems')" />
+  <Import Project="..\Continuous.Core\Continuous.Core.projitems" Label="Shared" Condition="Exists('..\Continuous.Core\Continuous.Core.projitems')" />
+</Project>

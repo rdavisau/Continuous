@@ -4,6 +4,7 @@ all:
 
 nuget:
 	nuget restore Continuous.sln
+	msbuild /p:Configuration=Release Continuous.Server.NetStandard/Continuous.Server.NetStandard.csproj
 	msbuild /p:Configuration=Release Continuous.Server.iOS/Continuous.Server.iOS.csproj
 	msbuild /p:Configuration=Release Continuous.Server.Android/Continuous.Server.Android.csproj
 	nuget pack Continuous.nuspec
