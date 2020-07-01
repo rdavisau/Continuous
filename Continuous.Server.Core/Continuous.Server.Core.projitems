@@ -11,6 +11,7 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)HttpServer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)INeedToKnowAboutContinuousServer.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)RoslynVM.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)VM.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Visualizer.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ObjectInspectorData.cs" />

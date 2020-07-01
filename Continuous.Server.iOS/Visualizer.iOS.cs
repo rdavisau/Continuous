@@ -37,6 +37,9 @@ namespace Continuous.Server
         public override void Visualize(EvalResult res)
 		{
 			var val = res.Result;
+			if (val == null)
+				return;
+			
 			var ty = val != null ? val.GetType () : typeof(object);
 			Log ("{0} value = {1}", ty.FullName, val);
 
