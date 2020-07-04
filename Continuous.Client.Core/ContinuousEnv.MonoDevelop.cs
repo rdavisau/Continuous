@@ -31,6 +31,13 @@ namespace Continuous.Client
 
 	public class MonoDevelopContinuousEnv : ContinuousEnv
 	{
+		SynchronizationContext MainThread;
+
+		public MonoDevelopContinuousEnv()
+        {
+			MainThread = SynchronizationContext.Current;
+        }
+
         protected override async Task SetWatchTextAsync(WatchVariable w, List<string> vals)
         {
             var doc = IdeApp.Workbench.GetDocument(w.FilePath);
@@ -214,8 +221,9 @@ namespace Continuous.Client
 				return null;
 			}
 
-            var editLoc = doc.GetContent<ITextView>().Caret.Position.BufferPosition.GetLineAndColumn1Based();
-			return new TextLoc (editLoc.line, editLoc.column);
+			var editLoc = doc.GetContent<ITextView>().Caret.Position.BufferPosition; //.GetLineAndColumn1Based();
+			var line = editLoc.GetContainingLine().LineNumber + 1;
+			return new TextLoc(line, 0); //editLoc.line, editLoc.column);
 		}
 
 		protected override void MonitorEditorChanges ()
@@ -226,6 +234,7 @@ namespace Continuous.Client
         
 		MonoDevelop.Ide.Gui.Document boundDoc = null;
         ITextBuffer buffer = null;
+		IDisposable watcher = null;
 
 		void BindActiveDoc (object sender, EventArgs e)
 		{
@@ -236,11 +245,14 @@ namespace Continuous.Client
 			}
             
 			if (buffer != null) {
-                buffer.Changed -= ScheduleUpdate; 
-            }
+                buffer.Changed -= ScheduleUpdate;
+			}
+
+			watcher?.Dispose();
 
 			boundDoc = doc;
             buffer = doc.GetContent<ITextBuffer>();
+			watcher = CreateFileSystemWatcher(doc);
 
             if (buffer != null) {
                 buffer.Changed += ScheduleUpdate;
