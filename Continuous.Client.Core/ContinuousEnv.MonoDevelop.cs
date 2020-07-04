@@ -4,7 +4,6 @@ using System.Text;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.Text;
-
 using MonoDevelop.Ide;
 using Gtk;
 using Microsoft.CodeAnalysis;
@@ -13,6 +12,10 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.VisualStudio.Text.Editor;
 using Continuous.Client.MD.Extensions;
 using System.Threading;
+using System.IO;
+using RxFileSystemWatcher;
+using System.Reactive.Linq;
+using System.Diagnostics;
 
 #pragma warning disable 1998
 
@@ -54,7 +57,8 @@ namespace Continuous.Client
         }
 
         class CSharpTypeDecl : TypeDecl
-		{
+        {
+	        public string FilePath => Document.FullPath;
 			public ClassDeclarationSyntax Declaration { get; set; }
 			public SyntaxNode Root { get; set; }
 			public SemanticModel Model { get; set; }
@@ -120,7 +124,7 @@ namespace Continuous.Client
 				// the rewriter collects the WatchVariable definitions as it walks the tree
 				var watches = rewriter.WatchVariables;
 
-				TypeCode.Set (name, usings, commentlessCode, instrumentedCode, deps, ns, watches);
+				TypeCode.Set (name, usings, commentlessCode, instrumentedCode, deps, FilePath, ns, watches);
 			}
 		}
 
@@ -179,7 +183,7 @@ namespace Continuous.Client
                     var root = await analysisDocument.GetSyntaxRootAsync();
                     var model = await analysisDocument.GetSemanticModelAsync();
                     var typeDecls =
-                        root.DescendantNodes((arg) => true)
+                        root.DescendantNodes(x => !(x is ClassDeclarationSyntax))
                             .OfType<ClassDeclarationSyntax>()
                             .Select(t => new CSharpTypeDecl
                             {
@@ -243,14 +247,52 @@ namespace Continuous.Client
 			}
         }
 
-        CancellationTokenSource _canceller = new CancellationTokenSource();
-        public void ScheduleUpdate(object sender, EventArgs e)
+        public IDisposable CreateFileSystemWatcher(MonoDevelop.Ide.Gui.Document document)
+        {
+			var dir = Path.GetDirectoryName(document.FilePath);
+			var file = Path.GetFileName(document.FilePath);
+
+			var fsw = new FileSystemWatcher(dir) { EnableRaisingEvents = true, IncludeSubdirectories = true };
+			var ofsw = new ObservableFileSystemWatcher(fsw);
+			ofsw.Start();
+
+			return Observable.Merge
+				(ofsw.Changed, ofsw.Created, ofsw.Renamed, ofsw.Deleted)
+				.Select(_ => System.Reactive.Unit.Default)
+				.Throttle(TimeSpan.FromSeconds(.05))
+				.ObserveOn(MainThread)
+				.SelectMany(async _ =>
+                {
+#pragma warning disable CS0618 // Type or member is obsolete
+                    document.DocumentContext.ReparseDocument();
+#pragma warning restore CS0618 // Type or member is obsolete
+                    await document.Reload();
+
+					return System.Reactive.Unit.Default;
+                })
+				.Subscribe(_ =>
+                {
+					try { ScheduleUpdate(null, null, 0); }
+					catch (Exception ex)
+					{
+						Debug.WriteLine(ex);
+					}
+                });				
+        }
+
+		public void ScheduleUpdate(object sender, EventArgs e)
+        {
+			ScheduleUpdate(sender, e, 100);
+        }
+
+		CancellationTokenSource _canceller = new CancellationTokenSource();
+        public void ScheduleUpdate(object sender, EventArgs e, int delay)
         {
             _canceller.Cancel();
             _canceller = new CancellationTokenSource();
 
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-            Task.Delay(350, _canceller.Token)
+            Task.Delay(delay, _canceller.Token)
                 .ContinueWith(t =>
                 {
                     if (t.IsCanceled)
@@ -264,6 +306,8 @@ namespace Continuous.Client
         async void ActiveDoc_DocumentParsed (object sender, EventArgs e)
 		{
             var doc = IdeApp.Workbench.ActiveDocument;
+
+
 			Log ("DOC PARSED {0}", doc.Name);
 
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed

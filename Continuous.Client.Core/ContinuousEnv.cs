@@ -86,10 +86,11 @@ namespace Continuous.Client
 			}
 		}
 
-		protected async Task<EvalResponse> EvalForResponseAsync (string declarations, string valueExpression, bool showError)
+		protected async Task<EvalResponse> EvalForResponseAsync(string declarations, string valueExpression,
+			string codeFilePath, bool showError)
 		{
 			Connect ();
-			var r = await conn.VisualizeAsync (declarations, valueExpression);
+			var r = await conn.VisualizeAsync (declarations, valueExpression, codeFilePath);
 			var err = r.HasErrors;
 			if (err)
 			{
@@ -127,11 +128,13 @@ namespace Continuous.Client
             var typeName = typedecl.Name;
 
             MonitorTypeName = typeName;
+            TargetDocument = MonoDevelop.Ide.IdeApp.Workbench.ActiveDocument;
             //			monitorNamespace = nsName;
 
             await SetTypesAndVisualizeMonitoredTypeAsync (forceEval: true, showError: true);
         }
 
+        public MonoDevelop.Ide.Gui.Document TargetDocument;
         public HashSet<MonoDevelop.Ide.Gui.Document> AdditionalDocuments = new HashSet<MonoDevelop.Ide.Gui.Document>();
         public async Task AddTypeAsync()
         {
@@ -149,10 +152,12 @@ namespace Continuous.Client
 
         protected async Task SetTypesAndVisualizeMonitoredTypeAsync (bool forceEval, bool showError)
         {
+	        TypeCode.Clear();
+	        
             //
             // Gobble up all we can about the types in the active document
             //
-            var typeDecls = await GetTopLevelTypeDeclsAsync ();
+            var typeDecls = await GetTopLevelTypeDeclsForDocumentAsync(TargetDocument);
 
             foreach (var doc in AdditionalDocuments)
             {
@@ -161,6 +166,7 @@ namespace Continuous.Client
                 typeDecls = Enumerable.Concat(typeDecls, docTypeDecls).ToArray();
             }
 
+            Debug.WriteLine("SET TYPE CODE");
             foreach (var td in typeDecls) {
                 td.SetTypeCode ();
             }
@@ -217,16 +223,25 @@ namespace Continuous.Client
                     .OrderByDescending(x => x.Name != MonitorTypeName)
                     .ToList();
 
-            foreach (var tc in typesWithCode)
+            var sharedSuffix = DateTime.UtcNow.Ticks.ToString();
+
+            foreach (var tc in typesWithCode) // new[] { monitoredTypeCode })// typesWithCode)
             {
                 var isMonitoredType = tc.Key == monitoredTypeCode.Key;
 
-                var code = await Task.Run(() => tc.GetLinkedCode(instantiate: isMonitoredType));
+                var code = await Task.Run(() => tc.GetLinkedCode(instantiate: isMonitoredType, sharedSuffix));
                 OnLinkedMonitoredCode(code);
+
+                foreach (var other in typesWithCode.Where(twc => twc != tc))
+                {
+                    foreach (var dep in other.AllDependencies)
+                        if (dep.Name == tc.Name)
+                            dep.CodeChanged = true;
+                }
 
                 if (!forceEval && lastLinkedCode != null && lastLinkedCode.CacheKey == code.CacheKey)
                 {
-                    return;
+                    continue;
                 }
 
                 //
@@ -238,7 +253,7 @@ namespace Continuous.Client
                     // Declare and Show it
                     //
                     Log(code.ValueExpression);
-                    var resp = await EvalForResponseAsync(code.Declarations, code.ValueExpression, showError);
+                    var resp = await EvalForResponseAsync(code.Declarations, code.ValueExpression, code.FilePath, showError);
                     if (resp.HasErrors)
                         return;
 

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-
+using System.Text;
 #if MONODEVELOP
 using ICSharpCode.NRefactory;
 using ICSharpCode.NRefactory.CSharp;
@@ -24,6 +24,8 @@ namespace Continuous.Client
 
 			CacheKey = mainType.UsingsAndCode + string.Join ("", types.Select (x => x.UsingsAndCode));
 		}
+
+		public string FilePath { get; set; }
 	}
 
 	public class TypeCode
@@ -31,6 +33,7 @@ namespace Continuous.Client
 		// Only partial namespace support because I can't figureout how to
 		// get good TypeDeclarations from SimpleTypes.
 
+		public string FilePath { get; set; }
 		public string Name = "";
 		public TypeCode[] Dependencies = new TypeCode[0];
 		public string[] Usings = new string[0];
@@ -88,13 +91,14 @@ namespace Continuous.Client
 
 		public static TypeCode Set (string name, IEnumerable<string> usings, string code, IEnumerable<string> deps, string fullNamespace = "", IEnumerable<WatchVariable> watches = null)
 		{
-			return Set (name, usings, code, code, deps, fullNamespace, watches);
+			return Set (name, usings, code, code, deps, fullNamespace, "", watches);
 		}
 
-		public static TypeCode Set (string name, IEnumerable<string> usings, string rawCode, string instrumentedCode, IEnumerable<string> deps, string fullNamespace = "", IEnumerable<WatchVariable> watches = null)
+		public static TypeCode Set (string name, IEnumerable<string> usings, string rawCode, string instrumentedCode, IEnumerable<string> deps, string filePath, string fullNamespace = "", IEnumerable<WatchVariable> watches = null)
 		{
 			var tc = Get (name);
 
+			tc.FilePath = filePath;
 			tc.Usings = usings.ToArray ();
 			tc.Dependencies = deps.Distinct ().Select (Get).ToArray ();
 			tc.FullNamespace = fullNamespace;
@@ -148,7 +152,7 @@ namespace Continuous.Client
 			}
 		}
 
-		public LinkedCode GetLinkedCode (bool instantiate)
+		public LinkedCode GetLinkedCode (bool instantiate, string suffix = null)
 		{
 			var allDeps = AllDependencies.Where (x => x.HasCode).ToList ();
 
@@ -171,9 +175,10 @@ namespace Continuous.Client
 			}
 			var codes = changedDeps;
 
-			var usings = codes.SelectMany (x => x.Usings).Distinct ().ToList ();
+			var namespaceUsings = new[] { String.Join(" ", ConvertToUsings(FullNamespace)) };
+			var usings = codes.SelectMany (x => x.Usings).Concat(namespaceUsings).Distinct ().ToList ();
 
-			var suffix = DateTime.UtcNow.Ticks.ToString ();
+			suffix = suffix ?? DateTime.UtcNow.Ticks.ToString ();
 
 			var renames =
 				codes.
@@ -197,22 +202,37 @@ namespace Continuous.Client
 				return rc;
 			};
             
+			var code = string.Join(Environment.NewLine, codes.Select(x => rename(x.Code)));
+			
+			var sb = new StringBuilder();
+			sb.Append(string.Join(Environment.NewLine, usings));
+			sb.Append("\r\n");
+			sb.Append(code);
+			
+			// roslyn friendly ver
 			return new LinkedCode (
 				valueExpression:
-					valueExpression,
-				declarations:
-					string.Join (Environment.NewLine, codes.Select (x => {
-						var us = string.Join (Environment.NewLine, usings);
-						var renamedCode = rename (x.Code);
-						if (x.HasNamespace) {
-							return "namespace " + x.FullNamespace + "{" + us + "\n" + renamedCode + "}";
-						}
-						else {
-							return us + "\n" + renamedCode;
-						}
-					})),
+				$"new {Name}{suffix}()",
+				declarations: sb.ToString(),
 				types: codes.ToArray (),
-				mainType: this);
+				mainType: this)
+			{
+				FilePath = FilePath
+			};
+		}
+		
+		private IEnumerable<string> ConvertToUsings(string ns)
+		{
+			if (String.IsNullOrWhiteSpace(ns))
+				yield break;
+	        
+			var parts = ns.Split('.').ToList();
+	
+			while (parts.Any())
+			{
+				yield return $"using {String.Join(".", parts)};";
+				parts.RemoveAt(parts.Count - 1);
+			}
 		}
 	}
 }
