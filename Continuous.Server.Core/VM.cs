@@ -24,26 +24,27 @@ namespace Continuous.Server
 		public EvalResult Eval (EvalRequest code, TaskScheduler mainScheduler, CancellationToken token)
 		{
 			var r = new EvalResult ();
-			Task.Factory.StartNew (() =>
+			Task.Factory.StartNew (async () =>
 			{
-				r = EvalOnMainThread (code, token);
+				r = await EvalOnMainThread (code, token);
 			}, token, TaskCreationOptions.None, mainScheduler).Wait ();
 			return r;
 		}
 
-		EvalResult EvalOnMainThread (EvalRequest code, CancellationToken token)
+		async Task<EvalResult> EvalOnMainThread (EvalRequest code, CancellationToken token)
 		{
 			var sw = new System.Diagnostics.Stopwatch ();
 
 			object result = null;
 			bool hasResult = false;
+            bool failed = false;
 
             // be ready to capture assemblies as they are produced by the evaluator;
             var assemblies = new List<Assembly>();
             void OnAssemblyLoad(object sender, AssemblyLoadEventArgs args) => assemblies.Add(args.LoadedAssembly);
 
-            lock (mutex) {
-				InitIfNeeded ();
+            //lock (mutex) {
+				await InitIfNeeded ();
 
 				Log ("EVAL ON THREAD {0}", System.Threading.Thread.CurrentThread.ManagedThreadId);
 
@@ -51,6 +52,7 @@ namespace Continuous.Server
 
 				sw.Start ();
 
+                var shouldInstantiate = ShouldInstantiate(code);
 
                 try
                 {
@@ -60,7 +62,7 @@ namespace Continuous.Server
 					{
 						Evaluator.Evaluate (code.Declarations, out result, out hasResult);
 					}
-					if (!string.IsNullOrEmpty (code.ValueExpression) && ShouldInstantiate(code))
+					if (!string.IsNullOrEmpty (code.ValueExpression) && shouldInstantiate)
 					{
 						Evaluator.Evaluate (code.ValueExpression, out result, out hasResult);
 					}
@@ -68,7 +70,8 @@ namespace Continuous.Server
                     AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
 
                 }
-                catch (InternalErrorException) {
+                catch (InternalErrorException ex1) {
+                    failed = true;
 					Evaluator = null; // Force re-init
                     AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
                 }
@@ -77,14 +80,15 @@ namespace Continuous.Server
 					if (ex.StackTrace.Contains ("Mono.CSharp.InternalErrorException")) {
 						Evaluator = null; // Force re-init
 					}
-					printer.AddError (ex);
+                    failed = true;
+                    printer.AddError (ex);
                     AppDomain.CurrentDomain.AssemblyLoad -= OnAssemblyLoad;
                 }
 
                 sw.Stop ();
 
 				Log ("END EVAL ON THREAD {0}", System.Threading.Thread.CurrentThread.ManagedThreadId);
-			}
+			//}
 
 			var primaryTypeName = code.ValueExpression.Replace("new ", "").Replace("()", "").Replace(";", "").Trim();
 			var newTypes = GetTypesFromAssemblies(assemblies);
@@ -95,12 +99,13 @@ namespace Continuous.Server
 				Duration = sw.Elapsed,
 				Result = result,
 				HasResult = hasResult,
+                Failed = failed,
 				NewTypes = newTypes,
 				PrimaryType = primaryType,
 			};
 		}
 
-		void InitIfNeeded()
+		async Task InitIfNeeded()
 		{
 			if (Evaluator == null) {
 
@@ -128,12 +133,13 @@ namespace Continuous.Server
 					Log ("DYNAMIC REF {0}", e.LoadedAssembly);
 					AddReference (e.LoadedAssembly);
 				};
+
 				foreach (var a in AppDomain.CurrentDomain.GetAssemblies ()) {
                     if (!ShouldAddAssemblyReference(a))
                         continue;
 
                     Log ("STATIC REF {0}", a);
-					AddReference (a);
+                    await Task.Run(async () => AddReference(a));
 				}
 
 				//

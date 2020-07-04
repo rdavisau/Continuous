@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Continuous.Server
 {
@@ -192,7 +193,7 @@ namespace Continuous.Server
 
 		void Visualize (EvalResult res)
 		{
-			if (!res.HasResult) {
+			if (res.Failed) {
 				return;
 			}
 			try {

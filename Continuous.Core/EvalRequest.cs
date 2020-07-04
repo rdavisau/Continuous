@@ -16,6 +16,7 @@ namespace Continuous
 	{
 		public string Declarations;
 		public string ValueExpression;
+		public string FilePath { get; set; }
 	}
 
 	public class EvalMessage
@@ -32,13 +33,13 @@ namespace Continuous
 		public TimeSpan Duration;
 		public object Result;
 		public bool HasResult;
+        public bool Failed { get; set; }
         public Type PrimaryType { get; set; }
-        public List<Type> NewTypes { get; set; }
+        public List<Type> NewTypes { get; set; } = new List<Type>();
 
         public bool HasErrors {
 			get { return Messages != null && Messages.Any (m => m.MessageType == "error"); }
 		}
-
     }
 
 	public class EvalResponse
